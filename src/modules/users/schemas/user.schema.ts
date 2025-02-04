@@ -30,6 +30,7 @@ const UserSchema = new Schema<IUserModel>({
     unique: true,
   },
   role: [{ type: Schema.Types.ObjectId, ref: DB_COLLECTION_NAMES.ROLES }],
+  role_permission: [{ type: String }],
   add_to_currant_and_future_desks: {
     type: Boolean,
     default: false,

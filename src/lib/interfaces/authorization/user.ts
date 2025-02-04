@@ -12,6 +12,7 @@ export interface IUser extends IBaseEntity {
   email: string;
   username: string;
   role: Types.ObjectId[];
+  role_permission: string[];
   add_to_currant_and_future_desks?: boolean;
   add_to_currant_and_future_skill_groups?: boolean;
   is_assign_leads?: boolean;
