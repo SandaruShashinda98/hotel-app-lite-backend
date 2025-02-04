@@ -71,6 +71,15 @@ export class CreateUserDTO extends CommonEditFieldsRequestDTO {
   @IsOptional()
   role: string[];
 
+  @ApiProperty({
+    example: ['wdw43ref423we3f', 'd3h6fd8dh7v8'],
+    isArray: true,
+    required: true,
+  })
+  @IsArray()
+  @IsOptional()
+  role_permission: string[];
+
   @ApiProperty({ example: 1234, type: Number, required: false })
   @IsNumber()
   @IsOptional()
