@@ -11,6 +11,7 @@ export interface IUser extends IBaseEntity {
   last_name: string;
   email: string;
   username: string;
+  mobile_number: string;
   role: Types.ObjectId[];
   role_permission: string;
   add_to_currant_and_future_desks?: boolean;

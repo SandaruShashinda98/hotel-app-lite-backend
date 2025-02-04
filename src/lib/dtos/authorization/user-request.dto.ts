@@ -57,6 +57,10 @@ export class CreateUserDTO extends CommonEditFieldsRequestDTO {
   @IsNotEmpty()
   username: string;
 
+  @ApiProperty({ example: 'johnDoe', type: String, required: true })
+  @IsString()
+  mobile_number: string;
+
   @ApiProperty({ example: 'johnDoe@123', type: String, required: false })
   @IsString()
   @IsOptional()
