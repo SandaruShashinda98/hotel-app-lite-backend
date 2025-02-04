@@ -70,8 +70,8 @@ export class UsersService {
       (userData as unknown as Partial<IUser>).created_by = loggedUser._id;
 
       // validate roles and set roles
-      (userData as unknown as Partial<IUser>).role =
-        await this.rolesService.rolesValidationHandler(userData.role);
+      // (userData as unknown as Partial<IUser>).role =
+      //   await this.rolesService.rolesValidationHandler(userData.role);
 
       // create new user
       const newUser = await this.usersDatabaseService.createUser(
