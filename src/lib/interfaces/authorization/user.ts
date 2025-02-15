@@ -28,7 +28,7 @@ export interface IUser extends IBaseEntity {
 export type ILoggedUser = IUser & Pick<ILoginPayload, 'permissions'>;
 
 export interface IAuthCredentials extends IBaseEntity {
-  user_id: Types.ObjectId; // object id of the user
+  user_id: Types.ObjectId;
   token: string;
   refresh_token: string;
   password: string;
