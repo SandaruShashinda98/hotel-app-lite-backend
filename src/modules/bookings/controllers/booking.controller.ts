@@ -24,6 +24,7 @@ import { Permissions } from '@common/decorators/permissions.decorator';
 import { BookingService } from '../services/booking.service';
 import { PermissionGuard } from '@common/guards/permission.guard';
 import { PERMISSIONS } from '@constant/authorization/roles';
+import { BookingComService } from '../services/bookingCom.service';
 
 @ApiTags('bookings')
 @Controller({ path: 'bookings' })
@@ -31,6 +32,7 @@ export class BookingController {
   constructor(
     private readonly bookingDatabaseService: BookingDatabaseService,
     private readonly bookingService: BookingService,
+    private readonly bookingComService: BookingComService,
   ) {}
 
   @ApiOperation({
@@ -50,6 +52,24 @@ export class BookingController {
       );
 
     return foundBooking;
+  }
+
+  @Get('sync')
+  async syncBookings(
+    @Query('fromDate')
+    fromDate: string = new Date().toISOString().split('T')[0],
+    @Query('toDate')
+    toDate: string = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0],
+  ) {
+    // this.logger.log(`Syncing bookings from ${fromDate} to ${toDate}`);
+    const data = await this.bookingComService.fetchReservations(
+      fromDate,
+      toDate,
+    );
+
+    console.log('data', data);
   }
 
   @ApiOperation({
@@ -82,8 +102,12 @@ export class BookingController {
       loggedUser,
     );
 
+    console.log('newBooking', newBooking);
+
     if (!newBooking)
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
+
+    await this.bookingService.createCalenderEvent(newBooking);
 
     return { data: newBooking };
   }

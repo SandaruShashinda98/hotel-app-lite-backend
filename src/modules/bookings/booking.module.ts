@@ -5,8 +5,21 @@ import { BookingSchema } from './schemas/booking.schema';
 import { BookingController } from './controllers/booking.controller';
 import { BookingService } from './services/booking.service';
 import { BookingDatabaseService } from './services/booking.database.service';
+import { GoogleCalendarService } from './services/google-calendar.service';
+import { GoogleCalendarController } from './controllers/google-calender.controller';
+import { HttpModule } from '@nestjs/axios';
+import { BookingComService } from './services/bookingCom.service';
+import { RoomController } from './controllers/room.controller';
+import { RoomDatabaseService } from './services/room.database.service';
+import { RoomSchema } from './schemas/room.schema';
 
-const services = [BookingDatabaseService, BookingService];
+const services = [
+  BookingDatabaseService,
+  GoogleCalendarService,
+  BookingComService,
+  BookingService,
+  RoomDatabaseService
+];
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -14,9 +27,14 @@ const services = [BookingDatabaseService, BookingService];
         name: DB_COLLECTION_NAMES.BOOKINGS,
         schema: BookingSchema,
       },
+      {
+        name: DB_COLLECTION_NAMES.ROOMS,
+        schema: RoomSchema,
+      },
     ]),
+    HttpModule
   ],
-  controllers: [BookingController],
+  controllers: [BookingController, GoogleCalendarController, RoomController],
   providers: services,
   exports: services,
 })

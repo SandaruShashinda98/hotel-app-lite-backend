@@ -14,6 +14,7 @@ export enum DB_COLLECTION_NAMES {
 
   // R
   ROLES = 'roles',
+  ROOMS = 'rooms',
 
   // U
   USERS = 'users',

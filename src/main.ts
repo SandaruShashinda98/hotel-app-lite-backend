@@ -40,9 +40,7 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors({
-    origin: ['http://localhost:4200'],
-  });
+  app.enableCors();
 
   const port = configService.get(SYSTEM_CONFIG_KEYS.PORT);
 
