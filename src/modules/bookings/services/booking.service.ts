@@ -1,36 +1,125 @@
 import { GetClockOutReasonQueryDTO } from '@dto/references/clock-out-query-param';
 import { IUser } from '@interface/authorization/user';
-import { IBooking } from '@interface/references/reference';
+import { IBooking, IRoom } from '@interface/references/reference';
 import { Injectable } from '@nestjs/common';
-import { FilterQuery } from 'mongoose';
+import { FilterQuery, Types } from 'mongoose';
 import { GoogleCalendarService } from './google-calendar.service';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
+import { RoomDatabaseService } from './room.database.service';
+import { BookingDatabaseService } from './booking.database.service';
 
 @Injectable()
 export class BookingService {
   constructor(
     private googleCalendarService: GoogleCalendarService,
+    private roomDatabaseService: RoomDatabaseService,
+    private bookingDatabaseService: BookingDatabaseService,
     private httpService: HttpService,
   ) {}
 
-  /**
-   * This function generates filter criteria based on search key and ID for clock out
-   * reasons.
-   */
-  getBookingFilters(queryParams: GetClockOutReasonQueryDTO) {
-    const { searchKey, _id } = queryParams;
+  // getBookingFilters(queryParams: GetClockOutReasonQueryDTO) {
+  //   const { searchKey, _id } = queryParams;
 
-    const filterCriteria: FilterQuery<GetClockOutReasonQueryDTO> = {};
+  //   const filterCriteria: FilterQuery<GetClockOutReasonQueryDTO> = {};
 
-    filterCriteria.is_delete = false;
+  //   filterCriteria.is_delete = false;
 
-    if (searchKey)
-      filterCriteria.customer_name = { $regex: searchKey, $options: 'i' };
+  //   if (searchKey)
+  //     filterCriteria.customer_name = { $regex: searchKey, $options: 'i' };
 
-    if (_id) filterCriteria._id = _id;
+  //   if (_id) filterCriteria._id = _id;
 
-    return filterCriteria;
+  //   return filterCriteria;
+  // }
+
+  getBookingFilters(queryParams: any): any {
+    const filters: any = {};
+
+    // Search by customer name or mobile number
+    if (queryParams.searchKey) {
+      filters.$or = [
+        { customer_name: { $regex: queryParams.searchKey, $options: 'i' } },
+        { mobile_number: { $regex: queryParams.searchKey, $options: 'i' } },
+      ];
+    }
+
+    // Filter by status
+    if (queryParams.status) {
+      filters.status = queryParams.status;
+    }
+
+    // Filter by date range
+    if (queryParams.startDate) {
+      filters.clock_in = { $gte: new Date(queryParams.startDate) };
+    }
+
+    if (queryParams.endDate) {
+      filters.clock_out = { $lte: new Date(queryParams.endDate) };
+    }
+
+    // Filter by room
+    if (queryParams.roomId) {
+      filters.room_id = new Types.ObjectId(queryParams.roomId);
+    }
+
+    return filters;
+  }
+
+  async getAvailableRooms(checkIn: Date, checkOut: Date): Promise<IRoom[]> {
+    // Get all rooms
+    const allRooms = await this.roomDatabaseService.filterDocuments();
+    
+    // Find any bookings that overlap with the requested date range
+    const conflictingBookings = await this.bookingDatabaseService.findOverlappingBookings(
+      checkIn,
+      checkOut,
+    );
+    
+    // Get the room IDs that are already booked
+    const bookedRoomIds = conflictingBookings.map(booking => 
+      booking.room_id.toString()
+    );
+    
+    // Filter out rooms that are already booked or under maintenance
+    const availableRooms = allRooms.filter(room => 
+      !bookedRoomIds.includes(room._id.toString()) && 
+      room.status !== 'maintenance'
+    );
+    
+    return availableRooms;
+  }
+
+  async updateRoomStatus(roomId: Types.ObjectId, status: string): Promise<void> {
+    // Update the room status (via the room service)
+    await this.roomDatabaseService.updateRoomStatus(
+      roomId,
+      status,
+      null // Normally this would be the logged user
+    );
+  }
+
+  async handleBookingStatusChange(
+    bookingId: Types.ObjectId, 
+    newStatus: string, 
+    oldStatus?: string
+  ): Promise<void> {
+    const booking = await this.bookingDatabaseService.findById(bookingId.toString());
+    
+    if (!booking) {
+      return;
+    }
+    
+    const roomId = new Types.ObjectId(booking.room_id);
+    
+    // If status changed to confirmed, update room status to occupied
+    if (newStatus === 'confirmed') {
+      await this.updateRoomStatus(roomId, 'occupied');
+    } 
+    // If status changed from confirmed to something else, update room status to available
+    else if (oldStatus === 'confirmed') {
+      await this.updateRoomStatus(roomId, 'available');
+    }
   }
 
   async createCalenderEvent(bookingData: IBooking) {
