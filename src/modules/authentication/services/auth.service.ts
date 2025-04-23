@@ -45,6 +45,7 @@ export class AuthService {
       username: user.username,
       sub: user._id,
       permissions: user.permissions,
+      role_permission: user.role_permission
     };
 
     const access_token = this.jwtService.sign(payload, {
@@ -154,6 +155,7 @@ export class AuthService {
         _id: user.user_id,
         username: payload.username,
         permissions: payload.permissions,
+        role_permission: payload.role_permission
       };
 
       const tokens = await this.generateTokens(loginPayload);

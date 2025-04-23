@@ -68,6 +68,9 @@ const UserSchema = new Schema<IUserModel>({
   devices: {
     type: [String],
   },
+  user_role: {
+    type: String,
+  },
 });
 
 const UserModel = model<IUserModel>(DB_COLLECTION_NAMES.USERS, UserSchema);

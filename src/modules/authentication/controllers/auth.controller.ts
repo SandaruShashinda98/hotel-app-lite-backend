@@ -74,6 +74,7 @@ export class AuthController {
       _id: foundUser._id,
       username: foundUser.username,
       permissions: uniquePermissions,
+      role_permission: foundUser.role_permission,
     };
 
     const tokens = await this.authService.login(payload);

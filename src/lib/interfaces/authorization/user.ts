@@ -23,6 +23,7 @@ export interface IUser extends IBaseEntity {
   max_concurrent_sessions?: number;
   devices?: string[];
   last_login?: Date;
+  user_role?: string;
 }
 
 export type ILoggedUser = IUser & Pick<ILoginPayload, 'permissions'>;
@@ -38,4 +39,5 @@ export interface ILoginPayload {
   _id: Types.ObjectId | string;
   username: string;
   permissions: PERMISSIONS[];
+  role_permission: string
 }

@@ -69,53 +69,60 @@ export class BookingService {
   async getAvailableRooms(checkIn: Date, checkOut: Date): Promise<IRoom[]> {
     // Get all rooms
     const allRooms = await this.roomDatabaseService.filterDocuments();
-    
+
     // Find any bookings that overlap with the requested date range
-    const conflictingBookings = await this.bookingDatabaseService.findOverlappingBookings(
-      checkIn,
-      checkOut,
-    );
-    
+    const conflictingBookings =
+      await this.bookingDatabaseService.findOverlappingBookings(
+        checkIn,
+        checkOut,
+      );
+
     // Get the room IDs that are already booked
-    const bookedRoomIds = conflictingBookings.map(booking => 
-      booking.room_id.toString()
+    const bookedRoomIds = conflictingBookings.map((booking) =>
+      booking.room_id.toString(),
     );
-    
+
     // Filter out rooms that are already booked or under maintenance
-    const availableRooms = allRooms.filter(room => 
-      !bookedRoomIds.includes(room._id.toString()) && 
-      room.status !== 'maintenance'
+    const availableRooms = allRooms.filter(
+      (room) =>
+        !bookedRoomIds.includes(room._id.toString()) &&
+        room.status !== 'maintenance',
     );
-    
+
     return availableRooms;
   }
 
-  async updateRoomStatus(roomId: Types.ObjectId, status: string): Promise<void> {
+  async updateRoomStatus(
+    roomId: Types.ObjectId,
+    status: string,
+  ): Promise<void> {
     // Update the room status (via the room service)
     await this.roomDatabaseService.updateRoomStatus(
       roomId,
       status,
-      null // Normally this would be the logged user
+      null, // Normally this would be the logged user
     );
   }
 
   async handleBookingStatusChange(
-    bookingId: Types.ObjectId, 
-    newStatus: string, 
-    oldStatus?: string
+    bookingId: Types.ObjectId,
+    newStatus: string,
+    oldStatus?: string,
   ): Promise<void> {
-    const booking = await this.bookingDatabaseService.findById(bookingId.toString());
-    
+    const booking = await this.bookingDatabaseService.findById(
+      bookingId.toString(),
+    );
+
     if (!booking) {
       return;
     }
-    
+
     const roomId = new Types.ObjectId(booking.room_id);
-    
+
     // If status changed to confirmed, update room status to occupied
     if (newStatus === 'confirmed') {
       await this.updateRoomStatus(roomId, 'occupied');
-    } 
+    }
     // If status changed from confirmed to something else, update room status to available
     else if (oldStatus === 'confirmed') {
       await this.updateRoomStatus(roomId, 'available');
@@ -124,14 +131,14 @@ export class BookingService {
 
   async createCalenderEvent(bookingData: IBooking) {
     // Save booking to your database...
-
+    console.log("bookingData",bookingData);
     // Add event to Google Calendar
     const calendarEventData = {
-      summary: `Booking: ${bookingData.customer_name} - Room ${bookingData.customer_name}`,
-      description: `Guest`,
+      summary: `Booking: ${bookingData.customer_name} - Mobile No ${bookingData.mobile_number}`,
+      description: `Status: ${bookingData.status} - Notes: ${bookingData.note}`,
       start: bookingData.clock_in,
       end: bookingData.clock_out,
-      location: `Room 4`,
+      location: `Room Booking`,
     };
 
     try {
