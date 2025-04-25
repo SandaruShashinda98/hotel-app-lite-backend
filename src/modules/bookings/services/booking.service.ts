@@ -135,7 +135,7 @@ export class BookingService {
     // Add event to Google Calendar
     const calendarEventData = {
       summary: `Booking: ${bookingData.customer_name} - Mobile No ${bookingData.mobile_number}`,
-      description: `Status: ${bookingData.status} - Notes: ${bookingData.note}`,
+      description: `Email- ${bookingData.email} Status: ${bookingData.status} - Notes: ${bookingData.note}`,
       start: bookingData.clock_in,
       end: bookingData.clock_out,
       location: `Room Booking`,

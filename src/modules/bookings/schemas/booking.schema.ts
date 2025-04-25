@@ -15,6 +15,10 @@ const BookingSchema = new Schema<IBookingModel>({
     type: String,
     required: true,
   },
+  email: {
+    type: String,
+    required: true,
+  },
   clock_in: {
     type: Date,
     required: true,
