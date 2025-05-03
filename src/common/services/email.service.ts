@@ -8,15 +8,16 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private configService: ConfigService) {
-    // Configure nodemailer with SMTP settings
+  constructor(private readonly configService: ConfigService) {
+    // Initialize the nodemailer transporter
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('MAIL_HOST'),
-      port: this.configService.get<number>('MAIL_PORT'),
-      secure: this.configService.get<boolean>('MAIL_SECURE'),
+      service: 'gmail',
+      host: this.configService.get<string>('EMAIL_HOST'),
+      port: this.configService.get<number>('EMAIL_PORT'),
+      secure: this.configService.get<boolean>('EMAIL_SECURE', false),
       auth: {
-        user: this.configService.get<string>('MAIL_USER'),
-        pass: this.configService.get<string>('MAIL_PASSWORD'),
+        user: this.configService.get<string>('EMAIL_USER'),
+        pass: this.configService.get<string>('EMAIL_PASSWORD'),
       },
     });
   }
@@ -26,9 +27,9 @@ export class EmailService {
    */
   async sendBookingConfirmationEmail(booking: IBooking): Promise<boolean> {
     try {
-      const hotelName = this.configService.get<string>('HOTEL_NAME');
-      const hotelEmail = this.configService.get<string>('HOTEL_EMAIL');
-      
+      const hotelName = this.configService.get<string>('EMAIL_FROM_NAME');
+      const hotelEmail = this.configService.get<string>('EMAIL_FROM');
+
       const mailOptions = {
         from: `"${hotelName}" <${hotelEmail}>`,
         to: booking.email,
@@ -46,7 +47,6 @@ export class EmailService {
             </div>
             
             <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-              <p><strong>Booking Reference:</strong> ${booking._id}</p>
               <p><strong>Check-in Date:</strong> ${new Date(booking.clock_in).toLocaleDateString()}</p>
               <p><strong>Check-out Date:</strong> ${new Date(booking.clock_out).toLocaleDateString()}</p>
               <p><strong>Status:</strong> ${booking.status}</p>
@@ -67,7 +67,9 @@ export class EmailService {
       this.logger.log(`Booking confirmation email sent to ${booking.email}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send booking confirmation email: ${error.message}`);
+      this.logger.error(
+        `Failed to send booking confirmation email: ${error.message}`,
+      );
       return false;
     }
   }
@@ -77,9 +79,9 @@ export class EmailService {
    */
   async sendBookingUpdateEmail(booking: IBooking): Promise<boolean> {
     try {
-      const hotelName = this.configService.get<string>('HOTEL_NAME');
-      const hotelEmail = this.configService.get<string>('HOTEL_EMAIL');
-      
+      const hotelName = this.configService.get<string>('EMAIL_FROM_NAME');
+      const hotelEmail = this.configService.get<string>('EMAIL_FROM');
+
       const mailOptions = {
         from: `"${hotelName}" <${hotelEmail}>`,
         to: booking.email,
@@ -96,7 +98,6 @@ export class EmailService {
             </div>
             
             <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-              <p><strong>Booking Reference:</strong> ${booking._id}</p>
               <p><strong>Check-in Date:</strong> ${new Date(booking.clock_in).toLocaleDateString()}</p>
               <p><strong>Check-out Date:</strong> ${new Date(booking.clock_out).toLocaleDateString()}</p>
               <p><strong>Status:</strong> ${booking.status}</p>
@@ -117,7 +118,9 @@ export class EmailService {
       this.logger.log(`Booking update email sent to ${booking.email}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send booking update email: ${error.message}`);
+      this.logger.error(
+        `Failed to send booking update email: ${error.message}`,
+      );
       return false;
     }
   }
@@ -127,14 +130,18 @@ export class EmailService {
    */
   async sendCheckInCheckoutEmail(booking: IBooking): Promise<boolean> {
     try {
-      const hotelName = this.configService.get<string>('HOTEL_NAME');
-      const hotelEmail = this.configService.get<string>('HOTEL_EMAIL');
-      
+      const hotelName = this.configService.get<string>('EMAIL_FROM_NAME');
+      const hotelEmail = this.configService.get<string>('EMAIL_FROM');
+
       const isCheckIn = booking.is_checked_in && !booking.is_checked_out;
-      const emailSubject = isCheckIn ? `Check-In Confirmation - ${hotelName}` : `Check-Out Confirmation - ${hotelName}`;
-      const emailHeading = isCheckIn ? 'Check-In Confirmation' : 'Check-Out Confirmation';
-      const messageContent = isCheckIn 
-        ? `We're pleased to confirm that you have successfully checked in to ${hotelName}. We hope you have a wonderful stay with us!` 
+      const emailSubject = isCheckIn
+        ? `Check-In Confirmation - ${hotelName}`
+        : `Check-Out Confirmation - ${hotelName}`;
+      const emailHeading = isCheckIn
+        ? 'Check-In Confirmation'
+        : 'Check-Out Confirmation';
+      const messageContent = isCheckIn
+        ? `We're pleased to confirm that you have successfully checked in to ${hotelName}. We hope you have a wonderful stay with us!`
         : `We're confirming that you have checked out from ${hotelName}. Thank you for choosing to stay with us, and we hope to welcome you back soon!`;
 
       const mailOptions = {
@@ -153,15 +160,15 @@ export class EmailService {
             </div>
             
             <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-              <p><strong>Booking Reference:</strong> ${booking._id}</p>
               <p><strong>Check-in Date:</strong> ${new Date(booking.clock_in).toLocaleDateString()}</p>
               <p><strong>Check-out Date:</strong> ${new Date(booking.clock_out).toLocaleDateString()}</p>
             </div>
             
             <div>
-              ${isCheckIn ? 
-                `<p>If you need any assistance during your stay, please don't hesitate to contact our reception desk.</p>` : 
-                `<p>We hope you enjoyed your stay! If you have a moment, we would appreciate your feedback or a review of your experience.</p>`
+              ${
+                isCheckIn
+                  ? `<p>If you need any assistance during your stay, please don't hesitate to contact our reception desk.</p>`
+                  : `<p>We hope you enjoyed your stay! If you have a moment, we would appreciate your feedback or a review of your experience.</p>`
               }
               <p>Best regards,</p>
               <p>The ${hotelName} Team</p>
@@ -171,10 +178,14 @@ export class EmailService {
       };
 
       await this.transporter.sendMail(mailOptions);
-      this.logger.log(`${isCheckIn ? 'Check-in' : 'Check-out'} email sent to ${booking.email}`);
+      this.logger.log(
+        `${isCheckIn ? 'Check-in' : 'Check-out'} email sent to ${booking.email}`,
+      );
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send check-in/check-out email: ${error.message}`);
+      this.logger.error(
+        `Failed to send check-in/check-out email: ${error.message}`,
+      );
       return false;
     }
   }
@@ -184,9 +195,9 @@ export class EmailService {
    */
   async sendBookingCancellationEmail(booking: IBooking): Promise<boolean> {
     try {
-      const hotelName = this.configService.get<string>('HOTEL_NAME');
-      const hotelEmail = this.configService.get<string>('HOTEL_EMAIL');
-      
+      const hotelName = this.configService.get<string>('EMAIL_FROM_NAME');
+      const hotelEmail = this.configService.get<string>('EMAIL_FROM');
+
       const mailOptions = {
         from: `"${hotelName}" <${hotelEmail}>`,
         to: booking.email,
@@ -203,7 +214,6 @@ export class EmailService {
             </div>
             
             <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-              <p><strong>Booking Reference:</strong> ${booking._id}</p>
               <p><strong>Original Check-in Date:</strong> ${new Date(booking.clock_in).toLocaleDateString()}</p>
               <p><strong>Original Check-out Date:</strong> ${new Date(booking.clock_out).toLocaleDateString()}</p>
               <p><strong>Status:</strong> Cancelled</p>
@@ -223,7 +233,9 @@ export class EmailService {
       this.logger.log(`Booking cancellation email sent to ${booking.email}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send booking cancellation email: ${error.message}`);
+      this.logger.error(
+        `Failed to send booking cancellation email: ${error.message}`,
+      );
       return false;
     }
   }

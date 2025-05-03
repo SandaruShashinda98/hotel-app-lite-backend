@@ -47,6 +47,7 @@ export class BookingDatabaseService extends CommonDatabaseService<IBooking> {
           customer_name: 1,
           mobile_number: 1,
           email: 1,
+          booking_originate: 1,
           clock_in: 1,
           clock_out: 1,
           status: 1,

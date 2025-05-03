@@ -5,6 +5,7 @@ export interface IBooking {
   customer_name: string;
   mobile_number: string;
   email: string;
+  booking_originate: string;
   clock_in: Date;
   clock_out: Date;
   status: 'pending' | 'confirmed' | 'completed' | 'canceled';

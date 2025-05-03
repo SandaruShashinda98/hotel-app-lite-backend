@@ -130,7 +130,9 @@ export class BookingController {
   ) {
     // Validate required fields for email notifications
     if (!createBooking.email) {
-      throw new BadRequestException('Customer email is required for notifications');
+      throw new BadRequestException(
+        'Customer email is required for notifications',
+      );
     }
 
     // Verify that the room is available for the selected dates
@@ -167,9 +169,13 @@ export class BookingController {
     // Send booking confirmation email
     try {
       await this.emailService.sendBookingConfirmationEmail(newBooking);
-      this.logger.log(`Booking confirmation email sent for booking ${newBooking._id}`);
+      this.logger.log(
+        `Booking confirmation email sent for booking ${newBooking._id}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send booking confirmation email: ${error.message}`);
+      this.logger.error(
+        `Failed to send booking confirmation email: ${error.message}`,
+      );
       // Continue processing even if email fails
     }
 
@@ -208,7 +214,7 @@ export class BookingController {
     if (updateData.is_checked_in && !currentBooking.is_checked_in) {
       updateData.checked_in_at = new Date();
     }
-    
+
     if (updateData.is_checked_out && !currentBooking.is_checked_out) {
       updateData.checked_out_at = new Date();
     }
@@ -226,15 +232,19 @@ export class BookingController {
 
     // Send check-in/check-out notification email
     if (
-      (updateData.is_checked_in && !currentBooking.is_checked_in) || 
+      (updateData.is_checked_in && !currentBooking.is_checked_in) ||
       (updateData.is_checked_out && !currentBooking.is_checked_out)
     ) {
       try {
         await this.emailService.sendCheckInCheckoutEmail(updatedBooking);
         const checkType = updateData.is_checked_in ? 'check-in' : 'check-out';
-        this.logger.log(`${checkType.charAt(0).toUpperCase() + checkType.slice(1)} email sent for booking ${updatedBooking._id}`);
+        this.logger.log(
+          `${checkType.charAt(0).toUpperCase() + checkType.slice(1)} email sent for booking ${updatedBooking._id}`,
+        );
       } catch (error) {
-        this.logger.error(`Failed to send check-in/check-out email: ${error.message}`);
+        this.logger.error(
+          `Failed to send check-in/check-out email: ${error.message}`,
+        );
         // Continue processing even if email fails
       }
     }
@@ -304,13 +314,14 @@ export class BookingController {
     }
 
     // Track if status is changing
-    const isStatusChanging = updateData.status && updateData.status !== currentBooking.status;
+    const isStatusChanging =
+      updateData.status && updateData.status !== currentBooking.status;
     const oldStatus = currentBooking.status;
-    
+
     // Set last modified date
     updateData.last_modified_on = new Date();
     updateData.changed_by = loggedUser._id;
-    
+
     // Update booking
     const updatedBooking =
       await this.bookingDatabaseService.findBookingByIdAndUpdate(
@@ -327,14 +338,20 @@ export class BookingController {
       if (isStatusChanging && updatedBooking.status === 'canceled') {
         // If status changed to cancelled, send cancellation email
         await this.emailService.sendBookingCancellationEmail(updatedBooking);
-        this.logger.log(`Booking cancellation email sent for booking ${updatedBooking._id}`);
+        this.logger.log(
+          `Booking cancellation email sent for booking ${updatedBooking._id}`,
+        );
       } else {
         // For all other updates, send update notification
         await this.emailService.sendBookingUpdateEmail(updatedBooking);
-        this.logger.log(`Booking update email sent for booking ${updatedBooking._id}`);
+        this.logger.log(
+          `Booking update email sent for booking ${updatedBooking._id}`,
+        );
       }
     } catch (error) {
-      this.logger.error(`Failed to send booking update email: ${error.message}`);
+      this.logger.error(
+        `Failed to send booking update email: ${error.message}`,
+      );
       // Continue processing even if email fails
     }
 
@@ -353,10 +370,7 @@ export class BookingController {
   @ApiOperation({ summary: 'Delete booking' })
   @UseGuards(JwtAuthGuard, PermissionGuard)
   @Delete(':id')
-  async DeleteBooking(
-    @Param() pathParams: ObjectIDPathDTO,
-    @LoggedUser() loggedUser: ILoggedUser,
-  ) {
+  async DeleteBooking(@Param() pathParams: ObjectIDPathDTO) {
     // Get the booking to check its status
     const booking = await this.bookingDatabaseService.findById(pathParams.id);
 
@@ -367,9 +381,13 @@ export class BookingController {
     // Send cancellation email before deleting
     try {
       await this.emailService.sendBookingCancellationEmail(booking);
-      this.logger.log(`Booking cancellation email sent for deleted booking ${booking._id}`);
+      this.logger.log(
+        `Booking cancellation email sent for deleted booking ${booking._id}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send booking cancellation email: ${error.message}`);
+      this.logger.error(
+        `Failed to send booking cancellation email: ${error.message}`,
+      );
       // Continue processing even if email fails
     }
 

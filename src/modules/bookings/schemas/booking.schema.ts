@@ -15,6 +15,10 @@ const BookingSchema = new Schema<IBookingModel>({
     type: String,
     required: true,
   },
+  booking_originate: {
+    type: String,
+    default: 'Direct',
+  },
   email: {
     type: String,
     required: true,
