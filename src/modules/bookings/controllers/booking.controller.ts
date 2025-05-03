@@ -10,6 +10,7 @@ import {
   InternalServerErrorException,
   Delete,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { ObjectIDPathDTO } from '@common/dto/object-id.path.dto';
 import { RESPONSE_MESSAGES } from '@constant/common/responses';
@@ -29,6 +30,8 @@ import { EmailService } from '@common/services/email.service';
 @ApiTags('bookings')
 @Controller({ path: 'bookings' })
 export class BookingController {
+  private readonly logger = new Logger(BookingController.name);
+
   constructor(
     private readonly bookingDatabaseService: BookingDatabaseService,
     private readonly bookingService: BookingService,
@@ -93,20 +96,19 @@ export class BookingController {
       .toISOString()
       .split('T')[0],
   ) {
-    // this.logger.log(`Syncing bookings from ${fromDate} to ${toDate}`);
     const data = await this.bookingComService.fetchReservations(
       fromDate,
       toDate,
     );
 
-    console.log('data', data);
+    this.logger.log(`Synced ${data.length} bookings from external services`);
+    return { message: 'Bookings synced successfully', count: data.length };
   }
 
   @ApiOperation({
     summary: 'Get single booking',
   })
   @UseGuards(JwtAuthGuard, PermissionGuard)
-  // @Permissions(PERMISSIONS.VIEW_BOOKINGS)
   @Get(':id')
   async getSingleBooking(@Param() pathParams: ObjectIDPathDTO) {
     const foundBooking = await this.bookingDatabaseService.findById(
@@ -126,6 +128,11 @@ export class BookingController {
     @Body() createBooking: IBooking,
     @LoggedUser() loggedUser: ILoggedUser,
   ) {
+    // Validate required fields for email notifications
+    if (!createBooking.email) {
+      throw new BadRequestException('Customer email is required for notifications');
+    }
+
     // Verify that the room is available for the selected dates
     if (!createBooking.room_id) {
       throw new BadRequestException('Room selection is required');
@@ -157,6 +164,15 @@ export class BookingController {
     if (!newBooking)
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
 
+    // Send booking confirmation email
+    try {
+      await this.emailService.sendBookingConfirmationEmail(newBooking);
+      this.logger.log(`Booking confirmation email sent for booking ${newBooking._id}`);
+    } catch (error) {
+      this.logger.error(`Failed to send booking confirmation email: ${error.message}`);
+      // Continue processing even if email fails
+    }
+
     // If the booking is confirmed, update room status
     if (newBooking.status === 'confirmed') {
       await this.bookingService.handleBookingStatusChange(
@@ -165,6 +181,7 @@ export class BookingController {
       );
     }
 
+    // Create Google Calendar event
     await this.bookingService.createCalenderEvent(newBooking);
 
     return { data: newBooking };
@@ -176,9 +193,9 @@ export class BookingController {
   async updateCheckInState(
     @LoggedUser() loggedUser: ILoggedUser,
     @Param() pathParams: ObjectIDPathDTO,
-    @Body() updateData: IBooking,
+    @Body() updateData: Partial<IBooking>,
   ) {
-    // If room or dates are being changed, check availability
+    // Get current booking
     const currentBooking = await this.bookingDatabaseService.findById(
       pathParams.id,
     );
@@ -187,18 +204,39 @@ export class BookingController {
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
     }
 
+    // Update check-in/check-out timestamps if applicable
+    if (updateData.is_checked_in && !currentBooking.is_checked_in) {
+      updateData.checked_in_at = new Date();
+    }
+    
+    if (updateData.is_checked_out && !currentBooking.is_checked_out) {
+      updateData.checked_out_at = new Date();
+    }
+
+    // Update booking
     const updatedBooking =
       await this.bookingDatabaseService.findBookingByIdAndUpdate(
         new Types.ObjectId(pathParams.id),
-        { ...currentBooking, ...updateData },
+        updateData,
         loggedUser,
       );
 
     if (!updatedBooking)
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
 
-    if (updatedBooking.is_checked_in || updatedBooking.is_checked_out) {
-      await this.emailService.sendCheckInCheckoutEmail(updatedBooking);
+    // Send check-in/check-out notification email
+    if (
+      (updateData.is_checked_in && !currentBooking.is_checked_in) || 
+      (updateData.is_checked_out && !currentBooking.is_checked_out)
+    ) {
+      try {
+        await this.emailService.sendCheckInCheckoutEmail(updatedBooking);
+        const checkType = updateData.is_checked_in ? 'check-in' : 'check-out';
+        this.logger.log(`${checkType.charAt(0).toUpperCase() + checkType.slice(1)} email sent for booking ${updatedBooking._id}`);
+      } catch (error) {
+        this.logger.error(`Failed to send check-in/check-out email: ${error.message}`);
+        // Continue processing even if email fails
+      }
     }
 
     return { data: updatedBooking };
@@ -210,10 +248,9 @@ export class BookingController {
   async updateBooking(
     @LoggedUser() loggedUser: ILoggedUser,
     @Param() pathParams: ObjectIDPathDTO,
-    @Body() updateData: IBooking,
+    @Body() updateData: Partial<IBooking>,
   ) {
-    console.log('updateData', updateData);
-    // If room or dates are being changed, check availability
+    // Get current booking
     const currentBooking = await this.bookingDatabaseService.findById(
       pathParams.id,
     );
@@ -266,15 +303,49 @@ export class BookingController {
       }
     }
 
+    // Track if status is changing
+    const isStatusChanging = updateData.status && updateData.status !== currentBooking.status;
+    const oldStatus = currentBooking.status;
+    
+    // Set last modified date
+    updateData.last_modified_on = new Date();
+    updateData.changed_by = loggedUser._id;
+    
+    // Update booking
     const updatedBooking =
       await this.bookingDatabaseService.findBookingByIdAndUpdate(
         new Types.ObjectId(pathParams.id),
-        { ...currentBooking, ...updateData },
+        updateData,
         loggedUser,
       );
 
     if (!updatedBooking)
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
+
+    // Send appropriate email notification based on update type
+    try {
+      if (isStatusChanging && updatedBooking.status === 'canceled') {
+        // If status changed to cancelled, send cancellation email
+        await this.emailService.sendBookingCancellationEmail(updatedBooking);
+        this.logger.log(`Booking cancellation email sent for booking ${updatedBooking._id}`);
+      } else {
+        // For all other updates, send update notification
+        await this.emailService.sendBookingUpdateEmail(updatedBooking);
+        this.logger.log(`Booking update email sent for booking ${updatedBooking._id}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send booking update email: ${error.message}`);
+      // Continue processing even if email fails
+    }
+
+    // If status changed to confirmed/cancelled, update room status
+    if (isStatusChanging) {
+      await this.bookingService.handleBookingStatusChange(
+        new Types.ObjectId(updatedBooking._id),
+        updatedBooking.status,
+        oldStatus,
+      );
+    }
 
     return { data: updatedBooking };
   }
@@ -291,6 +362,15 @@ export class BookingController {
 
     if (!booking) {
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
+    }
+
+    // Send cancellation email before deleting
+    try {
+      await this.emailService.sendBookingCancellationEmail(booking);
+      this.logger.log(`Booking cancellation email sent for deleted booking ${booking._id}`);
+    } catch (error) {
+      this.logger.error(`Failed to send booking cancellation email: ${error.message}`);
+      // Continue processing even if email fails
     }
 
     // If the booking was confirmed, we need to update the room status

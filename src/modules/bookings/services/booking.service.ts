@@ -18,21 +18,6 @@ export class BookingService {
     private httpService: HttpService,
   ) {}
 
-  // getBookingFilters(queryParams: GetClockOutReasonQueryDTO) {
-  //   const { searchKey, _id } = queryParams;
-
-  //   const filterCriteria: FilterQuery<GetClockOutReasonQueryDTO> = {};
-
-  //   filterCriteria.is_delete = false;
-
-  //   if (searchKey)
-  //     filterCriteria.customer_name = { $regex: searchKey, $options: 'i' };
-
-  //   if (_id) filterCriteria._id = _id;
-
-  //   return filterCriteria;
-  // }
-
   getBookingFilters(queryParams: any): any {
     const filters: any = {};
 
