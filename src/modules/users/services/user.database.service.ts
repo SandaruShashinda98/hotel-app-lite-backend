@@ -54,7 +54,7 @@ export class UsersDatabaseService extends CommonDatabaseService<IUser> {
           username: 'admin',
           role: [role._id],
           created_by: SYSTEM_CHANGES.SYSTEM,
-          user_role: 'ADMIN',
+          role_permission: 'ADMIN',
         },
         'admin123', //password
       );

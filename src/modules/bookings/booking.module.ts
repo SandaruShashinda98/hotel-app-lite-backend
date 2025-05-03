@@ -12,13 +12,15 @@ import { BookingComService } from './services/bookingCom.service';
 import { RoomController } from './controllers/room.controller';
 import { RoomDatabaseService } from './services/room.database.service';
 import { RoomSchema } from './schemas/room.schema';
+import { EmailService } from '@common/services/email.service';
 
 const services = [
   BookingDatabaseService,
   GoogleCalendarService,
   BookingComService,
   BookingService,
-  RoomDatabaseService
+  RoomDatabaseService,
+  EmailService
 ];
 @Module({
   imports: [

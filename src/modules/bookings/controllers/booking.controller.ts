@@ -24,6 +24,7 @@ import { IBooking } from '@interface/references/reference';
 import { BookingService } from '../services/booking.service';
 import { PermissionGuard } from '@common/guards/permission.guard';
 import { BookingComService } from '../services/bookingCom.service';
+import { EmailService } from '@common/services/email.service';
 
 @ApiTags('bookings')
 @Controller({ path: 'bookings' })
@@ -31,6 +32,7 @@ export class BookingController {
   constructor(
     private readonly bookingDatabaseService: BookingDatabaseService,
     private readonly bookingService: BookingService,
+    private readonly emailService: EmailService,
     private readonly bookingComService: BookingComService,
   ) {}
 
@@ -38,7 +40,6 @@ export class BookingController {
     summary: 'Get all booking with filters and pagination',
   })
   @UseGuards(JwtAuthGuard, PermissionGuard)
-  // @Permissions(PERMISSIONS.VIEW_BOOKINGS)
   @Get()
   async filterBooking(@Query() queryParams: GetClockOutReasonQueryDTO) {
     const filters = this.bookingService.getBookingFilters(queryParams);
@@ -57,19 +58,20 @@ export class BookingController {
     summary: 'Get available rooms for a date range',
   })
   @UseGuards(JwtAuthGuard, PermissionGuard)
-  // @Permissions(PERMISSIONS.VIEW_ROOMS)
   @Get('available-rooms')
   async getAvailableRooms(
     @Query('checkIn') checkIn: string,
     @Query('checkOut') checkOut: string,
   ) {
     if (!checkIn || !checkOut) {
-      throw new BadRequestException('Check-in and check-out dates are required');
+      throw new BadRequestException(
+        'Check-in and check-out dates are required',
+      );
     }
 
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
-    
+
     if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
       throw new BadRequestException('Invalid date format');
     }
@@ -119,7 +121,6 @@ export class BookingController {
 
   @ApiOperation({ summary: 'Create new booking' })
   @UseGuards(JwtAuthGuard, PermissionGuard)
-  // @Permissions(PERMISSIONS.CREATE_BOOKING)
   @Post()
   async createBooking(
     @Body() createBooking: IBooking,
@@ -139,11 +140,13 @@ export class BookingController {
     );
 
     const isRoomAvailable = availableRooms.some(
-      room => room._id.toString() === createBooking.room_id.toString()
+      (room) => room._id.toString() === createBooking.room_id.toString(),
     );
 
     if (!isRoomAvailable) {
-      throw new BadRequestException('Selected room is not available for the chosen dates');
+      throw new BadRequestException(
+        'Selected room is not available for the chosen dates',
+      );
     }
 
     const newBooking = await this.bookingDatabaseService.createNewBooking(
@@ -158,7 +161,7 @@ export class BookingController {
     if (newBooking.status === 'confirmed') {
       await this.bookingService.handleBookingStatusChange(
         new Types.ObjectId(newBooking._id),
-        'confirmed'
+        'confirmed',
       );
     }
 
@@ -167,32 +170,72 @@ export class BookingController {
     return { data: newBooking };
   }
 
+  @ApiOperation({ summary: 'Update checking state' })
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @Patch('check/:id')
+  async updateCheckInState(
+    @LoggedUser() loggedUser: ILoggedUser,
+    @Param() pathParams: ObjectIDPathDTO,
+    @Body() updateData: IBooking,
+  ) {
+    // If room or dates are being changed, check availability
+    const currentBooking = await this.bookingDatabaseService.findById(
+      pathParams.id,
+    );
+
+    if (!currentBooking) {
+      throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
+    }
+
+    const updatedBooking =
+      await this.bookingDatabaseService.findBookingByIdAndUpdate(
+        new Types.ObjectId(pathParams.id),
+        { ...currentBooking, ...updateData },
+        loggedUser,
+      );
+
+    if (!updatedBooking)
+      throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
+
+    if (updatedBooking.is_checked_in || updatedBooking.is_checked_out) {
+      await this.emailService.sendCheckInCheckoutEmail(updatedBooking);
+    }
+
+    return { data: updatedBooking };
+  }
+
   @ApiOperation({ summary: 'Update booking' })
   @UseGuards(JwtAuthGuard, PermissionGuard)
-  // @Permissions(PERMISSIONS.EDIT_BOOKING)
   @Patch(':id')
   async updateBooking(
     @LoggedUser() loggedUser: ILoggedUser,
     @Param() pathParams: ObjectIDPathDTO,
     @Body() updateData: IBooking,
   ) {
+    console.log('updateData', updateData);
     // If room or dates are being changed, check availability
-    const currentBooking = await this.bookingDatabaseService.findById(pathParams.id);
-    
+    const currentBooking = await this.bookingDatabaseService.findById(
+      pathParams.id,
+    );
+
     if (!currentBooking) {
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
     }
 
     let needsAvailabilityCheck = false;
-    
+
     // Check if dates or room_id are being changed
     if (updateData.clock_in || updateData.clock_out || updateData.room_id) {
       needsAvailabilityCheck = true;
     }
 
     if (needsAvailabilityCheck) {
-      const checkInDate = new Date(updateData.clock_in || currentBooking.clock_in);
-      const checkOutDate = new Date(updateData.clock_out || currentBooking.clock_out);
+      const checkInDate = new Date(
+        updateData.clock_in || currentBooking.clock_in,
+      );
+      const checkOutDate = new Date(
+        updateData.clock_out || currentBooking.clock_out,
+      );
       const roomId = updateData.room_id || currentBooking.room_id;
 
       const availableRooms = await this.bookingService.getAvailableRooms(
@@ -201,66 +244,61 @@ export class BookingController {
       );
 
       // When checking availability for an update, we need to exclude the current booking
-      const overlappingBookings = await this.bookingDatabaseService.findOverlappingBookings(
-        checkInDate,
-        checkOutDate,
-        pathParams.id
-      );
+      const overlappingBookings =
+        await this.bookingDatabaseService.findOverlappingBookings(
+          checkInDate,
+          checkOutDate,
+          pathParams.id,
+        );
 
-      const isRoomAvailable = availableRooms.some(
-        room => room._id.toString() === roomId.toString()
-      ) || !overlappingBookings.some(
-        booking => booking.room_id.toString() === roomId.toString()
-      );
+      const isRoomAvailable =
+        availableRooms.some(
+          (room) => room._id.toString() === roomId.toString(),
+        ) ||
+        !overlappingBookings.some(
+          (booking) => booking.room_id.toString() === roomId.toString(),
+        );
 
       if (!isRoomAvailable) {
-        throw new BadRequestException('Selected room is not available for the chosen dates');
+        throw new BadRequestException(
+          'Selected room is not available for the chosen dates',
+        );
       }
     }
 
     const updatedBooking =
       await this.bookingDatabaseService.findBookingByIdAndUpdate(
         new Types.ObjectId(pathParams.id),
-        updateData,
+        { ...currentBooking, ...updateData },
         loggedUser,
       );
 
     if (!updatedBooking)
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
 
-    // Check if status has changed and handle room status updates
-    // if (updateData.status && updatedBooking._oldStatus !== updateData.status) {
-    //   await this.bookingService.handleBookingStatusChange(
-    //     new Types.ObjectId(updatedBooking._id),
-    //     updateData.status,
-    //     updatedBooking._oldStatus
-    //   );
-    // }
-
     return { data: updatedBooking };
   }
 
   @ApiOperation({ summary: 'Delete booking' })
   @UseGuards(JwtAuthGuard, PermissionGuard)
-  // @Permissions(PERMISSIONS.DELETE_BOOKING)
   @Delete(':id')
   async DeleteBooking(
     @Param() pathParams: ObjectIDPathDTO,
-    @LoggedUser() loggedUser: ILoggedUser
+    @LoggedUser() loggedUser: ILoggedUser,
   ) {
     // Get the booking to check its status
     const booking = await this.bookingDatabaseService.findById(pathParams.id);
-    
+
     if (!booking) {
       throw new InternalServerErrorException([RESPONSE_MESSAGES.DB_FAILURE]);
     }
-    
+
     // If the booking was confirmed, we need to update the room status
     if (booking.status === 'confirmed') {
       await this.bookingService.handleBookingStatusChange(
         new Types.ObjectId(booking._id),
         'canceled',
-        'confirmed'
+        'confirmed',
       );
     }
 

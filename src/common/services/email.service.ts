@@ -1,275 +1,229 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
 import { IBooking } from '@interface/references/reference';
 
 @Injectable()
 export class EmailService {
+  private transporter: nodemailer.Transporter;
   private readonly logger = new Logger(EmailService.name);
-  private readonly transporter: nodemailer.Transporter;
 
-  constructor(private readonly configService: ConfigService) {
-    // Initialize the nodemailer transporter
+  constructor(private configService: ConfigService) {
+    // Configure nodemailer with SMTP settings
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      host: this.configService.get<string>('EMAIL_HOST'),
-      port: this.configService.get<number>('EMAIL_PORT'),
-      secure: this.configService.get<boolean>('EMAIL_SECURE', false),
+      host: this.configService.get<string>('MAIL_HOST'),
+      port: this.configService.get<number>('MAIL_PORT'),
+      secure: this.configService.get<boolean>('MAIL_SECURE'),
       auth: {
-        user: this.configService.get<string>('EMAIL_USER'),
-        pass: this.configService.get<string>('EMAIL_PASSWORD'),
+        user: this.configService.get<string>('MAIL_USER'),
+        pass: this.configService.get<string>('MAIL_PASSWORD'),
       },
     });
   }
 
   /**
-   * Send an onboarding email to a newly created user
-   * @param userEmail The email of the user
-   * @param tempPassword The temporary password generated for the user
-   * @param resetToken The token for password reset
+   * Send booking confirmation email when a new booking is created
    */
-  async sendOnboardingEmail(
-    userEmail: string,
-    tempPassword: string,
-    resetToken: string,
-    resetMethod: string,
-  ): Promise<boolean> {
+  async sendBookingConfirmationEmail(booking: IBooking): Promise<boolean> {
     try {
-      const appUrl = this.configService.get<string>(
-        'APP_URL',
-        'http://localhost:3000',
-      );
-      const resetLink = `${appUrl}/register-account?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(userEmail)}&method=${encodeURIComponent(resetMethod)}`;
-
+      const hotelName = this.configService.get<string>('HOTEL_NAME');
+      const hotelEmail = this.configService.get<string>('HOTEL_EMAIL');
+      
       const mailOptions = {
-        from: `"${this.configService.get<string>('EMAIL_FROM_NAME', 'System Admin')}" <${this.configService.get<string>('EMAIL_FROM')}>`,
-        to: userEmail,
-        subject: 'Welcome to RingHD - Your Account Details',
+        from: `"${hotelName}" <${hotelEmail}>`,
+        to: booking.email,
+        subject: `Booking Confirmation - ${hotelName}`,
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Welcome to RingHD!</h2>
-            <p>Your account has been created successfully. Please find your login details below:</p>
-            
-            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <p><strong>Email:</strong> ${userEmail}</p>
-              <p><strong>Temporary Password:</strong> ${tempPassword}</p>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #3b82f6;">Booking Confirmation</h1>
             </div>
             
-            <p>To register and create your own password, click the button below:</p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetLink}" style="background-color: #38b2ac; color: white; padding: 12px 20px; text-decoration: none; border-radius: 20px; font-weight: bold;">
-                Register your account
-              </a>
+            <div style="margin-bottom: 20px;">
+              <p>Dear ${booking.customer_name},</p>
+              <p>Thank you for your booking. We're excited to welcome you to ${hotelName}!</p>
+              <p>Your booking has been confirmed with the following details:</p>
             </div>
             
-            <p>If the button doesn't work, you can copy and paste the following link into your browser:</p>
-            <p><a href="${resetLink}">${resetLink}</a></p>
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              <p><strong>Booking Reference:</strong> ${booking._id}</p>
+              <p><strong>Check-in Date:</strong> ${new Date(booking.clock_in).toLocaleDateString()}</p>
+              <p><strong>Check-out Date:</strong> ${new Date(booking.clock_out).toLocaleDateString()}</p>
+              <p><strong>Status:</strong> ${booking.status}</p>
+              ${booking.note ? `<p><strong>Special Notes:</strong> ${booking.note}</p>` : ''}
+            </div>
             
-            <p>This link will expire in 24 hours for security reasons.</p>
-            
-            <p>If you did not request this account, please ignore this email or contact our support team.</p>
-            
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #777; font-size: 12px;">
-              <p>This is an automated email. Please do not reply to this message.</p>
+            <div>
+              <p>If you have any questions or need to make changes to your reservation, please contact us at ${hotelEmail} or call our reception desk.</p>
+              <p>We look forward to making your stay memorable!</p>
+              <p>Best regards,</p>
+              <p>The ${hotelName} Team</p>
             </div>
           </div>
         `,
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      this.logger.log(
-        `Onboarding email sent to ${userEmail}: ${info.messageId}`,
-      );
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Booking confirmation email sent to ${booking.email}`);
       return true;
     } catch (error) {
-      this.logger.error(
-        `Failed to send onboarding email to ${userEmail}:`,
-        error,
-      );
+      this.logger.error(`Failed to send booking confirmation email: ${error.message}`);
       return false;
     }
   }
 
   /**
-   * Send a booking confirmation email to the customer
-   * @param bookingData The booking information
-   * @returns boolean Success/failure of the email sending
+   * Send booking update email when a booking is modified
    */
-  async sendBookingEmail(bookingData: IBooking): Promise<boolean> {
+  async sendBookingUpdateEmail(booking: IBooking): Promise<boolean> {
     try {
-      const {
-        customer_name,
-        mobile_number,
-        clock_in,
-        clock_out,
-        status,
-        room,
-        note,
-      } = bookingData;
-
-      // Format dates for better readability
-      const checkInDate = new Date(clock_in).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-
-      const checkInTime = new Date(clock_in).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
-      const checkOutDate = new Date(clock_out).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-
-      const checkOutTime = new Date(clock_out).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
-      // Calculate number of nights
-      const nights = Math.ceil(
-        (new Date(clock_out).getTime() - new Date(clock_in).getTime()) /
-          (1000 * 60 * 60 * 24),
-      );
-
-      // Calculate total price if room information is available
-      const totalPrice = room?.price_per_night
-        ? room.price_per_night * nights
-        : null;
-
-      // Get the hotel name from config
-      const hotelName = this.configService.get<string>(
-        'HOTEL_NAME',
-        'INNFUSION',
-      );
-
-      // Get customer email - you might need to add this to your booking interface
-      // For now, we'll construct an email from the mobile number as a fallback if there's no email in the data
-      const customerEmail =
-        bookingData.email ||
-        `${customer_name.replace(/\s+/g, '').toLowerCase()}@example.com`;
-
-      // Status color and text
-      let statusColor = '#FFC107'; // Default yellow for pending
-      let statusText = 'Booking Pending';
-
-      switch (status) {
-        case 'confirmed':
-          statusColor = '#4CAF50'; // Green
-          statusText = 'Booking Confirmed';
-          break;
-        case 'completed':
-          statusColor = '#2196F3'; // Blue
-          statusText = 'Stay Completed';
-          break;
-        case 'canceled':
-          statusColor = '#F44336'; // Red
-          statusText = 'Booking Canceled';
-          break;
-      }
-
+      const hotelName = this.configService.get<string>('HOTEL_NAME');
+      const hotelEmail = this.configService.get<string>('HOTEL_EMAIL');
+      
       const mailOptions = {
-        from: `"${this.configService.get<string>('EMAIL_FROM_NAME', hotelName)}" <${this.configService.get<string>('EMAIL_FROM')}>`,
-        to: customerEmail,
-        subject: `${statusText} - ${hotelName} Booking #${bookingData._id?.toString().slice(-8)}`,
+        from: `"${hotelName}" <${hotelEmail}>`,
+        to: booking.email,
+        subject: `Booking Update - ${hotelName}`,
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 5px; overflow: hidden;">
-            <!-- Header -->
-            <div style="background-color: ${statusColor}; padding: 20px; text-align: center; color: white;">
-              <h2 style="margin: 0;">${statusText}</h2>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #3b82f6;">Booking Update</h1>
             </div>
             
-            <!-- Booking information -->
-            <div style="padding: 20px;">
-              <p>Dear ${customer_name},</p>
-              <p>Thank you for choosing ${hotelName}. Here are your booking details:</p>
-              
-              <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <p style="margin: 5px 0;"><strong>Booking Reference:</strong> #${bookingData._id?.toString().slice(-8) || 'New Booking'}</p>
-                <p style="margin: 5px 0;"><strong>Guest Name:</strong> ${customer_name}</p>
-                <p style="margin: 5px 0;"><strong>Contact Number:</strong> ${mobile_number}</p>
-                <p style="margin: 5px 0;"><strong>Check-in:</strong> ${checkInDate} at ${checkInTime}</p>
-                <p style="margin: 5px 0;"><strong>Check-out:</strong> ${checkOutDate} at ${checkOutTime}</p>
-                <p style="margin: 5px 0;"><strong>Duration:</strong> ${nights} night${nights > 1 ? 's' : ''}</p>
-                ${
-                  room
-                    ? `
-                  <p style="margin: 5px 0;"><strong>Room:</strong> ${room.name} (${room.room_number})</p>
-                  <p style="margin: 5px 0;"><strong>Room Type:</strong> ${room.room_type}</p>
-                  <p style="margin: 5px 0;"><strong>Rate per Night:</strong> $${room.price_per_night.toFixed(2)}</p>
-                  ${totalPrice ? `<p style="margin: 5px 0;"><strong>Total Price:</strong> $${totalPrice.toFixed(2)}</p>` : ''}
-                `
-                    : ''
-                }
-                ${note ? `<p style="margin: 5px 0;"><strong>Special Notes:</strong> ${note}</p>` : ''}
-              </div>
-              
-              ${
-                status === 'confirmed'
-                  ? `
-                <div style="background-color: #e8f5e9; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4CAF50;">
-                  <p style="margin: 5px 0;"><strong>Your booking is confirmed!</strong></p>
-                  <p style="margin: 5px 0;">We're looking forward to welcoming you on ${checkInDate}.</p>
-                </div>
-              `
-                  : ''
-              }
-              
-              ${
-                status === 'pending'
-                  ? `
-                <div style="background-color: #fff8e1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #FFC107;">
-                  <p style="margin: 5px 0;"><strong>Your booking is pending confirmation.</strong></p>
-                  <p style="margin: 5px 0;">We're processing your request and will update you shortly.</p>
-                </div>
-              `
-                  : ''
-              }
-              
-              ${
-                status === 'canceled'
-                  ? `
-                <div style="background-color: #ffebee; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #F44336;">
-                  <p style="margin: 5px 0;"><strong>Your booking has been canceled.</strong></p>
-                  <p style="margin: 5px 0;">If you did not request this cancellation, please contact us immediately.</p>
-                </div>
-              `
-                  : ''
-              }
-              
-              <p>If you have any questions or need to modify your booking, please contact us:</p>
-              <p>
-                <strong>Phone:</strong> ${this.configService.get<string>('HOTEL_PHONE', '+1 234 567 8900')}<br>
-                <strong>Email:</strong> ${this.configService.get<string>('HOTEL_EMAIL', 'reservations@hotel.com')}
-              </p>
-              
-              <p style="margin-top: 20px;">We hope you enjoy your stay with us!</p>
-              <p>Warm regards,<br>The ${hotelName} Team</p>
+            <div style="margin-bottom: 20px;">
+              <p>Dear ${booking.customer_name},</p>
+              <p>Your booking with ${hotelName} has been updated with the following details:</p>
             </div>
             
-            <!-- Footer -->
-            <div style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #666;">
-              <p>This is an automated email. Please do not reply to this message.</p>
-              <p>© ${new Date().getFullYear()} ${hotelName}. All rights reserved.</p>
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              <p><strong>Booking Reference:</strong> ${booking._id}</p>
+              <p><strong>Check-in Date:</strong> ${new Date(booking.clock_in).toLocaleDateString()}</p>
+              <p><strong>Check-out Date:</strong> ${new Date(booking.clock_out).toLocaleDateString()}</p>
+              <p><strong>Status:</strong> ${booking.status}</p>
+              ${booking.note ? `<p><strong>Special Notes:</strong> ${booking.note}</p>` : ''}
+            </div>
+            
+            <div>
+              <p>If these changes do not match your expectations or if you have any questions, please contact us immediately at ${hotelEmail} or call our reception desk.</p>
+              <p>We look forward to making your stay memorable!</p>
+              <p>Best regards,</p>
+              <p>The ${hotelName} Team</p>
             </div>
           </div>
         `,
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      this.logger.log(
-        `Booking email sent to ${customerEmail}: ${info.messageId}`,
-      );
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Booking update email sent to ${booking.email}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send booking email:`, error);
+      this.logger.error(`Failed to send booking update email: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Send check-in/check-out notification email
+   */
+  async sendCheckInCheckoutEmail(booking: IBooking): Promise<boolean> {
+    try {
+      const hotelName = this.configService.get<string>('HOTEL_NAME');
+      const hotelEmail = this.configService.get<string>('HOTEL_EMAIL');
+      
+      const isCheckIn = booking.is_checked_in && !booking.is_checked_out;
+      const emailSubject = isCheckIn ? `Check-In Confirmation - ${hotelName}` : `Check-Out Confirmation - ${hotelName}`;
+      const emailHeading = isCheckIn ? 'Check-In Confirmation' : 'Check-Out Confirmation';
+      const messageContent = isCheckIn 
+        ? `We're pleased to confirm that you have successfully checked in to ${hotelName}. We hope you have a wonderful stay with us!` 
+        : `We're confirming that you have checked out from ${hotelName}. Thank you for choosing to stay with us, and we hope to welcome you back soon!`;
+
+      const mailOptions = {
+        from: `"${hotelName}" <${hotelEmail}>`,
+        to: booking.email,
+        subject: emailSubject,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #3b82f6;">${emailHeading}</h1>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+              <p>Dear ${booking.customer_name},</p>
+              <p>${messageContent}</p>
+            </div>
+            
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              <p><strong>Booking Reference:</strong> ${booking._id}</p>
+              <p><strong>Check-in Date:</strong> ${new Date(booking.clock_in).toLocaleDateString()}</p>
+              <p><strong>Check-out Date:</strong> ${new Date(booking.clock_out).toLocaleDateString()}</p>
+            </div>
+            
+            <div>
+              ${isCheckIn ? 
+                `<p>If you need any assistance during your stay, please don't hesitate to contact our reception desk.</p>` : 
+                `<p>We hope you enjoyed your stay! If you have a moment, we would appreciate your feedback or a review of your experience.</p>`
+              }
+              <p>Best regards,</p>
+              <p>The ${hotelName} Team</p>
+            </div>
+          </div>
+        `,
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`${isCheckIn ? 'Check-in' : 'Check-out'} email sent to ${booking.email}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send check-in/check-out email: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Send booking cancellation email
+   */
+  async sendBookingCancellationEmail(booking: IBooking): Promise<boolean> {
+    try {
+      const hotelName = this.configService.get<string>('HOTEL_NAME');
+      const hotelEmail = this.configService.get<string>('HOTEL_EMAIL');
+      
+      const mailOptions = {
+        from: `"${hotelName}" <${hotelEmail}>`,
+        to: booking.email,
+        subject: `Booking Cancellation - ${hotelName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #e11d48;">Booking Cancellation</h1>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+              <p>Dear ${booking.customer_name},</p>
+              <p>We're confirming that your booking with ${hotelName} has been cancelled as requested.</p>
+            </div>
+            
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              <p><strong>Booking Reference:</strong> ${booking._id}</p>
+              <p><strong>Original Check-in Date:</strong> ${new Date(booking.clock_in).toLocaleDateString()}</p>
+              <p><strong>Original Check-out Date:</strong> ${new Date(booking.clock_out).toLocaleDateString()}</p>
+              <p><strong>Status:</strong> Cancelled</p>
+            </div>
+            
+            <div>
+              <p>If you did not request this cancellation or if you have any questions, please contact us immediately at ${hotelEmail} or call our reception desk.</p>
+              <p>We hope to have the opportunity to welcome you to ${hotelName} in the future.</p>
+              <p>Best regards,</p>
+              <p>The ${hotelName} Team</p>
+            </div>
+          </div>
+        `,
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Booking cancellation email sent to ${booking.email}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send booking cancellation email: ${error.message}`);
       return false;
     }
   }

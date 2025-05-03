@@ -34,40 +34,6 @@ const UserSchema = new Schema<IUserModel>({
   },
   role: [{ type: Schema.Types.ObjectId, ref: DB_COLLECTION_NAMES.ROLES }],
   role_permission: { type: String },
-  add_to_currant_and_future_desks: {
-    type: Boolean,
-    default: false,
-  },
-  add_to_currant_and_future_skill_groups: {
-    type: Boolean,
-    default: false,
-  },
-  is_assign_leads: {
-    type: Boolean,
-    default: false,
-  },
-  virtual_extension: {
-    type: Number,
-    default: 0,
-  },
-  sip_setting: {
-    type: String,
-    enum: SIP_SETTINGS,
-  },
-  two_factor_authentication_type: {
-    type: String,
-    enum: TWO_FACTOR_AUTHENTICATION_TYPE,
-    default: TWO_FACTOR_AUTHENTICATION_TYPE.DISABLED,
-  },
-  max_concurrent_sessions: {
-    type: Number,
-  },
-  last_login: {
-    type: Date,
-  },
-  devices: {
-    type: [String],
-  },
   user_role: {
     type: String,
   },

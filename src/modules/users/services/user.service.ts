@@ -3,31 +3,31 @@ import {
   FilterUserMiscDataDto,
   FilterUsersDto,
   FilterUsersMetaDataDto,
-} from "@dto/authorization/user-query-param.dto";
-import { CreateUserDTO } from "@dto/authorization/user-request.dto";
+} from '@dto/authorization/user-query-param.dto';
+import { CreateUserDTO } from '@dto/authorization/user-request.dto';
 import {
   BadRequestException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
-} from "@nestjs/common";
-import { FilterQuery, isValidObjectId, Types } from "mongoose";
-import { UsersDatabaseService } from "./user.database.service";
-import { RESPONSE_MESSAGES } from "@constant/common/responses";
-import { ILoggedUser, IUser } from "@interface/authorization/user";
-import { ACTIVE_STATE, MISC_TYPE } from "@constant/authorization/user";
-import { RolesService } from "@module/roles/services/roles.service";
-import { DeleteRoleDTO } from "@dto/authorization/role-request.dto";
-import { IRole } from "@interface/authorization/roles";
-import { DuplicateException } from "@common/filters/duplicate-exception.filter";
-import { isValidPassword } from "@common/helpers/validation.helper";
-import { filterByName } from "@common/helpers/filter.helper";
+} from '@nestjs/common';
+import { FilterQuery, isValidObjectId, Types } from 'mongoose';
+import { UsersDatabaseService } from './user.database.service';
+import { RESPONSE_MESSAGES } from '@constant/common/responses';
+import { ILoggedUser, IUser } from '@interface/authorization/user';
+import { ACTIVE_STATE, MISC_TYPE } from '@constant/authorization/user';
+import { RolesService } from '@module/roles/services/roles.service';
+import { DeleteRoleDTO } from '@dto/authorization/role-request.dto';
+import { IRole } from '@interface/authorization/roles';
+import { DuplicateException } from '@common/filters/duplicate-exception.filter';
+import { isValidPassword } from '@common/helpers/validation.helper';
+import { filterByName } from '@common/helpers/filter.helper';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly usersDatabaseService: UsersDatabaseService,
-    private readonly rolesService: RolesService
+    private readonly rolesService: RolesService,
   ) {}
 
   /**
@@ -39,7 +39,7 @@ export class UsersService {
    */
   async createOrUpdateUser(
     createUserDto: CreateUserDTO,
-    loggedUser: ILoggedUser
+    loggedUser: ILoggedUser,
   ) {
     // for new user
     if (!createUserDto._id || !isValidObjectId(createUserDto._id)) {
@@ -70,13 +70,16 @@ export class UsersService {
       (userData as unknown as Partial<IUser>).created_by = loggedUser._id;
 
       // validate roles and set roles
+      (userData as unknown as Partial<IUser>).role = [
+        new Types.ObjectId('6813ad8000e07db519efa62a'),
+      ];
       // (userData as unknown as Partial<IUser>).role =
       //   await this.rolesService.rolesValidationHandler(userData.role);
 
       // create new user
       const newUser = await this.usersDatabaseService.createUser(
         userData as unknown as Partial<IUser>,
-        password
+        password,
       );
 
       if (!newUser)
@@ -88,14 +91,14 @@ export class UsersService {
     else {
       //check user availability
       const foundUser = await this.usersDatabaseService.findById(
-        createUserDto._id
+        createUserDto._id,
       );
 
       if (!foundUser)
         throw new NotFoundException([RESPONSE_MESSAGES.DATA_NOT_FOUND]);
 
       //TODO: this is for temporary(dev) purpose, remove it later
-      if (foundUser.username === "admin")
+      if (foundUser.username === 'admin')
         throw new UnprocessableEntityException([
           RESPONSE_MESSAGES.FORBIDDEN_RESOURCE,
         ]);
@@ -110,7 +113,7 @@ export class UsersService {
 
       const updatedUser = await this.usersDatabaseService.updateUser(
         foundUser._id.toString(),
-        updatedUserData
+        updatedUserData,
       );
 
       if (!updatedUser)
@@ -133,12 +136,12 @@ export class UsersService {
     const filterCriteria: FilterQuery<any> = {};
 
     if (email) {
-      const regex = new RegExp(email, "i");
+      const regex = new RegExp(email, 'i');
       filterCriteria.email = { $regex: regex };
     }
 
     if (username) {
-      const regex = new RegExp(username, "i");
+      const regex = new RegExp(username, 'i');
       filterCriteria.username = { $regex: regex };
     }
 
@@ -151,7 +154,7 @@ export class UsersService {
     }
 
     if (virtual_extension) {
-      const regex = new RegExp(virtual_extension.toString(), "i");
+      const regex = new RegExp(virtual_extension.toString(), 'i');
       filterCriteria.virtual_extension = { $regex: regex };
     }
 
@@ -172,7 +175,7 @@ export class UsersService {
    */
   getUserDataMiscFilters(
     queryParams: FilterUserMiscDataDto,
-    userId: Types.ObjectId
+    userId: Types.ObjectId,
   ): FilterQuery<FilterUserMiscDataDto> {
     const { searchKey } = queryParams;
 
@@ -180,7 +183,7 @@ export class UsersService {
     filterCriteria.is_delete = false;
 
     if (searchKey) {
-      const regex = new RegExp(searchKey, "i");
+      const regex = new RegExp(searchKey, 'i');
       if (
         queryParams.type === MISC_TYPE.DESK ||
         queryParams.type === MISC_TYPE.SKILL_GROUP
@@ -213,7 +216,7 @@ export class UsersService {
     filterCriteria.is_delete = false;
 
     if (filters.searchKey) {
-      const regex = new RegExp(filters.searchKey, "i");
+      const regex = new RegExp(filters.searchKey, 'i');
       filterCriteria.$or = [
         { first_name: { $regex: regex } },
         { last_name: { $regex: regex } },
@@ -241,14 +244,14 @@ export class UsersService {
 
     if (filters?.filter?.roleIds && filters?.filter?.roleIds?.length > 0) {
       const roleIdsArray = filters?.filter?.roleIds.map(
-        (roleId) => new Types.ObjectId(roleId)
+        (roleId) => new Types.ObjectId(roleId),
       );
       filterCriteria.role = { $in: roleIdsArray };
     }
 
     if (filters?.filter?.deskIds && filters?.filter?.deskIds?.length > 0)
       deskIdsArray = filters?.filter?.deskIds.map(
-        (deskId) => new Types.ObjectId(deskId)
+        (deskId) => new Types.ObjectId(deskId),
       );
 
     if (
@@ -256,7 +259,7 @@ export class UsersService {
       filters?.filter?.skillGroupIds?.length > 0
     )
       skillGroupsIdsArray = filters?.filter?.skillGroupIds.map(
-        (skillGroupId) => new Types.ObjectId(skillGroupId)
+        (skillGroupId) => new Types.ObjectId(skillGroupId),
       );
 
     return { filterCriteria, deskIdsArray, skillGroupsIdsArray };
@@ -273,12 +276,12 @@ export class UsersService {
   async updateUserRoles(
     usersWithRole: IUser[],
     actualUserRoles: Record<string, IRole | null>,
-    deleteRoleDto: DeleteRoleDTO
+    deleteRoleDto: DeleteRoleDTO,
   ) {
     const bulkOperations = deleteRoleDto.usersAndNewRoles
       .map((userId) => {
         const user = usersWithRole.find(
-          (userWithRole) => userWithRole._id.toString() == userId.user
+          (userWithRole) => userWithRole._id.toString() == userId.user,
         );
 
         if (!user) return;
@@ -302,7 +305,7 @@ export class UsersService {
 
     if (bulkOperations.length)
       return await this.usersDatabaseService.bulkUpdateUserRoles(
-        bulkOperations
+        bulkOperations,
       );
   }
 

@@ -22,6 +22,11 @@ export interface IBooking {
   created_by?: any;
   changed_by?: any;
   last_modified_on?: Date;
+
+  is_checked_in?: boolean;
+  is_checked_out?: boolean;
+  checked_in_at?: Date;
+  checked_out_at?: Date;
 }
 
 export type RoomType = 'SINGLE' | 'DOUBLE' | 'SUITE' | 'DELUXE' | 'FAMILY';

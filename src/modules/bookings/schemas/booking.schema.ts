@@ -39,7 +39,21 @@ const BookingSchema = new Schema<IBookingModel>({
     type: Schema.Types.ObjectId,
     ref: DB_COLLECTION_NAMES.ROOMS,
     required: true,
-  }
+  },
+  is_checked_in: {
+    type: Boolean,
+    default: false,
+  },
+  is_checked_out: {
+    type: Boolean,
+    default: false,
+  },
+  checked_in_at: {
+    type: Date,
+  },
+  checked_out_at: {
+    type: Date,
+  },
 });
 
 const BookingModel = model<IBookingModel>(

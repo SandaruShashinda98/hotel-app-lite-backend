@@ -46,6 +46,7 @@ export class BookingDatabaseService extends CommonDatabaseService<IBooking> {
           _id: 1,
           customer_name: 1,
           mobile_number: 1,
+          email: 1,
           clock_in: 1,
           clock_out: 1,
           status: 1,
@@ -54,6 +55,8 @@ export class BookingDatabaseService extends CommonDatabaseService<IBooking> {
           created_by: 1,
           changed_by: 1,
           created_on: 1,
+          is_checked_in: 1,
+          is_checked_out: 1,
           last_modified_on: 1,
           // Include selected fields from the room
           'room': {

@@ -131,7 +131,7 @@ export class BookingService {
 
   async createCalenderEvent(bookingData: IBooking) {
     // Save booking to your database...
-    console.log("bookingData",bookingData);
+    console.log('bookingData', bookingData);
     // Add event to Google Calendar
     const calendarEventData = {
       summary: `Booking: ${bookingData.customer_name} - Mobile No ${bookingData.mobile_number}`,
